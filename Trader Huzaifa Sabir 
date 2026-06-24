@@ -1,0 +1,46 @@
+# DEVELOPER: MUHAMMAD HUZAIFA SABIR
+import streamlit as st
+import requests
+
+st.set_page_config(layout="wide")
+st.title("MUHAMMAD HUZAIFA SABIR - Institutional Market Engine")
+
+# 1. Binance se saare 600+ coins automatically uthaye ga
+@st.cache_data
+def get_all_coins():
+    url = "https://fapi.binance.com/fapi/v1/ticker/price"
+    data = requests.get(url).json()
+    return [t['symbol'].replace("USDT", "") for t in data if 'USDT' in t['symbol']]
+
+# 2. Har timeframe ke liye specific calculation
+def get_smc_metrics(symbol, tf):
+    url = f"https://fapi.binance.com/fapi/v1/klines?symbol={symbol}USDT&interval={tf}&limit=20"
+    data = requests.get(url).json()
+    
+    highs = [float(c[2]) for c in data]
+    lows = [float(c[3]) for c in data]
+    close = float(data[-1][4])
+    
+    return {
+        "sup": min(lows),
+        "res": max(highs),
+        "fvg": "Detected" if data[-2][2] < data[-1][3] else "None",
+        "long_liq": close * 0.98,
+        "short_liq": close * 1.02
+    }
+
+# 3. UI Dashboard
+coins = get_all_coins()
+search = st.sidebar.selectbox("Select Any Coin from Binance:", coins)
+timeframes = ["1m", "3m", "5m", "15m", "30m", "1h", "4h", "6h", "8h", "12h", "1d", "1w", "1M"]
+
+st.subheader(f"Dashboard for: {search}")
+
+for tf in timeframes:
+    with st.expander(f"Timeframe: {tf}"):
+        m = get_smc_metrics(search, tf)
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Support", f"{m['sup']:.4f}")
+        col2.metric("Resistance", f"{m['res']:.4f}")
+        col3.write(f"**FVG:** {m['fvg']}")
+        col4.write(f"**Liq:** L:{m['long_liq']:.4f} | S:{m['short_liq']:.4f}")
